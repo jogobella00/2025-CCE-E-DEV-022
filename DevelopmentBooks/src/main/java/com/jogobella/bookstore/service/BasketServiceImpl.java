@@ -4,8 +4,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
@@ -26,7 +28,7 @@ public class BasketServiceImpl implements BasketService {
     public double calculatePrice(List<Integer> basket) {
         Map<Integer, Long> itemOccurrences = basket.stream().collect(Collectors.groupingBy(c -> c, Collectors.counting()));
 
-        LOG.info(itemOccurrences.toString());
+        LOG.debug(itemOccurrences.toString());
 
         // get the highest occurrence
         int highestOccurrence = (int) itemOccurrences
@@ -35,39 +37,28 @@ public class BasketServiceImpl implements BasketService {
                 .mapToLong(Long::longValue)
                 .max()
                 .orElse(0);
-        LOG.info("highest occurrence found: {}", highestOccurrence);
 
-        List<List<Integer>> sortedBasketItems = new ArrayList<>();
-        // loop over the map, starting from the highest occurrence and create lists of discountable baskets
-        for (int i = 1; i <= highestOccurrence; i++) {
-            AtomicInteger counter = new AtomicInteger(i);
-            LOG.info("checking for occurrence of {}", counter);
-            sortedBasketItems.add(
-                    itemOccurrences
-                            .entrySet()
-                            .stream()
-                            .filter(item -> item.getValue() >= counter.longValue())
-                            .map(Map.Entry::getKey)
-                            .collect(Collectors.toList())
-            );
-        }
-
-        LOG.info(sortedBasketItems.toString());
-
+        LOG.debug("highest occurrence found: {}", highestOccurrence);
 
         // balanced basked approach
         // highestOccurrence value is also amount of baskets
-        int basketSize = 5;
-        int loopRuns = 0;
-        Map<Double, List<Set<Integer>>> priceBasketMap = new HashMap<>();
-        for (int j = basketSize; j > 0 && j >= highestOccurrence; j--) {
-            Map<Integer, Set<Integer>> indexedList = new HashMap<>();
+        int maxBasketSize = 5;
+
+        // map of all basket options with their prices
+        Map<Double, List<List<Integer>>> priceBasketMap = new HashMap<>();
+
+        // generate baskets with defined decreasing max size
+        for (int j = highestOccurrence; j > 0; j--) {
+            Map<Integer, List<Integer>> indexedList = new HashMap<>();
             List<Integer> itemsNotFitting = new ArrayList<>();
+
+            // ##### 1. Create baskets with max basket size defined + itemsNotFitting list
+            // same logic as for biggest basket approach, but if basket reached max size, add element to a separate list, that will be addressed later
             for (int i = 1; i <= highestOccurrence; i++) {
-                Set<Integer> balancedBasket = new HashSet<>();
+                List<Integer> balancedBasket = new ArrayList<>();
                 for (Map.Entry<Integer, Long> entry : itemOccurrences.entrySet()) {
                     if (entry.getValue() >= i) {
-                        if (balancedBasket.size() >= basketSize) {
+                        if (balancedBasket.size() >= maxBasketSize || balancedBasket.contains(entry.getKey())) {
                             itemsNotFitting.add(entry.getKey());
                         } else {
                             balancedBasket.add(entry.getKey());
@@ -76,17 +67,17 @@ public class BasketServiceImpl implements BasketService {
                 }
                 indexedList.put(i, balancedBasket);
 
-                // check if possible to add elements to other arrays
+                // ##### 2. iterate over existing baskets and try to fit it elements from itemsNotFitting
                 if (!itemsNotFitting.isEmpty()) {
-                    for (Set<Integer> balancedBasketInMap: indexedList.values()) {
-                        if (balancedBasketInMap.size() < basketSize) {
+                    for (List<Integer> balancedBasketInMap: indexedList.values()) {
+                        if (balancedBasketInMap.size() < maxBasketSize) {
                             List<Integer> itemsToBeAdded = itemsNotFitting
                                     .stream()
                                     .filter(item -> !balancedBasketInMap.contains(item))
                                     .collect(Collectors.toList());
 
                             int counter = 0;
-                            while (balancedBasketInMap.size() < basketSize) {
+                            while (balancedBasketInMap.size() < maxBasketSize) {
                                 balancedBasketInMap.add(itemsToBeAdded.get(counter));
                                 itemsToBeAdded.remove(counter);
                                 counter++;
@@ -96,29 +87,29 @@ public class BasketServiceImpl implements BasketService {
                 }
             }
 
-            LOG.info(indexedList.toString());
-            List<Set<Integer>> balancedBaskets = indexedList.values().stream().collect(Collectors.toList());
+//            LOG.info(indexedList.toString());
+            List<List<Integer>> balancedBaskets = indexedList.values().stream().collect(Collectors.toList());
             double price = calculateFinalPrice(balancedBaskets);
-            priceBasketMap.put(price, balancedBaskets);
-            basketSize--;
 
-            loopRuns++;
-            LOG.info("iteration no: " + loopRuns);
-            if (loopRuns == highestOccurrence) break; // stop looping after number of occurrences happened
+            // ##### 3. Get price of each basket combination
+            priceBasketMap.put(price, balancedBaskets);
+
+            maxBasketSize--;
         }
         LOG.info(priceBasketMap.toString());
 
-        LOG.info(priceBasketMap.keySet().toString());
+//        LOG.info(priceBasketMap.keySet().toString());
 
+        // ##### 4. return the lowest price found
         double minPrice = priceBasketMap.keySet().stream().mapToDouble(Double::doubleValue).min().orElse(0);
         LOG.info("final min price: {}", minPrice);
         return minPrice;
     }
 
-    private double calculateFinalPrice(List<Set<Integer>> sortedBaskets) {
+    private double calculateFinalPrice(List<List<Integer>> sortedBaskets) {
         double finalPrice = 0;
-        for (Set<Integer> sortedBasket: sortedBaskets) {
-            LOG.info("base price: {}, basket size: {}, discount: {}", BASE_PRICE, sortedBasket.size(), DISCOUNT_LIST.get(sortedBasket.size()));
+        for (List<Integer> sortedBasket: sortedBaskets) {
+            LOG.debug("base price: {}, basket size: {}, discount: {}", BASE_PRICE, sortedBasket.size(), DISCOUNT_LIST.get(sortedBasket.size()));
             finalPrice += BASE_PRICE * sortedBasket.size() * DISCOUNT_LIST.get(sortedBasket.size());
         }
         return finalPrice;
