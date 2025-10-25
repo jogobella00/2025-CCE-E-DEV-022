@@ -57,6 +57,19 @@ public class BasketServiceTest {
     }
 
     @Test
+    @DisplayName("Should calculate price for five different books")
+    public void should_calculate_price_for_five_different_books() {
+        List<Integer> basket = List.of(
+                BOOKS_REPOSITORY.get(0).getId(),
+                BOOKS_REPOSITORY.get(1).getId(),
+                BOOKS_REPOSITORY.get(2).getId(),
+                BOOKS_REPOSITORY.get(3).getId(),
+                BOOKS_REPOSITORY.get(4).getId());
+        // (50 + 50 + 50 + 50 + 50) - 25% = 187.5
+        assertEquals(187.5, basketService.calculatePrice(basket));
+    }
+
+    @Test
     @DisplayName("Should calculate price for three different books + one extra")
     public void should_calculate_price_for_three_different_books_and_one_extra() {
         List<Integer> basket = List.of(
