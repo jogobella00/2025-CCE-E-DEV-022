@@ -25,9 +25,9 @@ mvn -version
 ```
 if you get error, you can visit [this](https://www.baeldung.com/install-maven-on-windows-linux-mac) link
 
-2. in your command line tool, navigate to /DevelopmentBooks
+2. in your command line tool, navigate to main directory of the repository
 ```cmd
-cd DevelopmentBooks
+cd 2025-CCE-E-DEV-022-DevelopmentBooks
 ```
 3. build the maven project
 ```cmd
